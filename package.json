@@ -1,0 +1,20 @@
+{
+  "name": "auto-admin-music",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "author": "Kacper Marcinkiewicz",
+  "license": "ISC",
+  "dependencies": {
+    "discord-youtube-api": "^0.1.0",
+    "discord.js": "^11.5.1",
+    "ffmpeg": "0.0.4",
+    "opusscript": "0.0.7",
+    "pkg": "^4.4.0",
+    "quick.db": "^7.0.0-b22",
+    "ytdl-core": "^0.29.7"
+  }
+}
