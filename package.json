@@ -15,6 +15,7 @@
     "opusscript": "0.0.7",
     "pkg": "^4.4.0",
     "quick.db": "^7.0.0-b22",
+    "tidal-api-wrapper": "^1.7.0",
     "ytdl-core": "^0.29.7"
   }
 }

@@ -13,6 +13,7 @@ const { PREFIX, TOKEN, YT_TOKEN } = require('./config');
 const ytdl = require('ytdl-core');
 const YouTube = require("discord-youtube-api");
 const stats = require('./commands/stats.js');
+const getPlaylistSongs = require('./commands/tidal-playlist.js')
 
 const youtube = new YouTube(YT_TOKEN);
 
@@ -275,6 +276,39 @@ client.on('message', async msg => { // eslint-disable-line
 		}
 	}
 
+	if(msg.content.startsWith(`${PREFIX}playTidal`) || msg.content.startsWith(`${PREFIX}tidal`)){
+		getPlaylistSongs('22dd13c7-ae9d-4728-9b43-a455476da608').then(async songs =>{
+			msg.channel.send(`Found **${songs.length}** songs in play playlist. Loading songs in background...`)
+
+			var counterOK = 0;
+            var counterAll = 0;
+            counterAll = songs.length;            
+            var clr;
+            if(counterAll == counterOK) clr = 0x04ff00
+            else clr = 0xffdd00;
+            
+            var m = msg.channel.send({embed: {
+                color: clr,
+                description: "**" + counterOK + "** songs of **" + counterAll + "** have been loaded"
+            }});
+
+			for(const song of songs){				
+				await playSong(msg, song)
+
+				counterOK++;
+				m.then(_m =>{
+					if(counterAll == counterOK) clr = 0x04ff00
+					else clr = 0xffdd00;
+					
+					_m.edit({embed: {
+						color: clr,
+						description: "**" + counterOK + "** songs of **" + counterAll + "** have been loaded"
+					}});
+				});
+			}
+		})	
+	}
+
 	return undefined;
 });
 
@@ -333,7 +367,8 @@ async function play(guild, song) {
 			console.log('song ended!');
 			if(!loop){
 				serverQueue.songs.shift();
-			}			
+			}	
+			if(!serverQueue.songs[0]) return	
 			play(guild, serverQueue.songs[0]);
 		})
 		.on('error', error => console.error(error));
@@ -342,4 +377,67 @@ async function play(guild, song) {
 	if(!loop) serverQueue.textChannel.send(`Start playing: **${song.title}**`);
 }
 
+/**
+ * Modified "if" from bot commands to use in Tidal
+ */
+async function playSong(msg, _song){	
+	var promise = new Promise(async (resolve, reject) => {
+    const serverQueue = queue.get(msg.guild.id);
+	const voiceChannel = msg.member.voiceChannel;
+	if (!voiceChannel) reject(msg.channel.send('I\'m sorry but you need to be in a voice channel to play music!'))
+	const permissions = voiceChannel.permissionsFor(msg.client.user);
+	if (!permissions.has('CONNECT')) {
+		return reject(msg.channel.send('I cannot connect to your voice channel, make sure I have the proper permissions!'))
+	}
+	if (!permissions.has('SPEAK')) {
+		return reject(msg.channel.send('I cannot speak in this voice channel, make sure I have the proper permissions!'))
+	}
+	
+	var videoUrl;
+	try{
+		console.log("Searching " + _song)
+		videoUrl = await youtube.searchVideos(_song);
+	}
+	catch(e){
+		console.log(e)
+		return reject(msg.channel.send(e + ". Remember, replace łąć with lac"))
+	}
+		
+	_song = videoUrl.url;
+
+	const songInfo = await ytdl.getInfo(_song);
+	const song = {
+		title: Util.escapeMarkdown(songInfo.title),
+		url: songInfo.video_url
+	};
+	if (!serverQueue) {
+		const queueConstruct = {
+			textChannel: msg.channel,
+			voiceChannel: voiceChannel,
+			connection: null,
+			songs: [],
+			volume: 1,
+			playing: true
+		};
+		queue.set(msg.guild.id, queueConstruct);
+
+		queueConstruct.songs.push(song);
+
+		try {
+			var connection = await voiceChannel.join();
+			queueConstruct.connection = connection;
+			play(msg.guild, queueConstruct.songs[0]);
+			return resolve(_song)
+		} catch (error) {
+			console.error(`I could not join the voice channel: ${error}`);
+			queue.delete(msg.guild.id);
+			return reject(msg.channel.send(`I could not join the voice channel: ${error}`))
+		}
+	} else {
+		serverQueue.songs.push(song.title);
+		return resolve(console.log("Song added"))
+	}}); 
+	
+	return promise;
+}
 client.login(TOKEN);
