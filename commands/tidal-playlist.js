@@ -48,6 +48,6 @@ function shuffleArray(array) {
  * Array filter - Ignore all songs with special characters
  */
 function arrayWithoutSpecials(element, index, array){ 
-    return (!element.includes("#") && !element.includes("/") && !element.includes("'") && !element.includes("!") && !element.includes("\\"))
+    return (!element.includes("#") && !element.includes("/") && !element.includes("'") && !element.includes("!") && !element.includes("\\") && !element.includes("ź"))
 }
 module.exports = getPlaylistSongs

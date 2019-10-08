@@ -281,7 +281,8 @@ client.on('message', async msg => { // eslint-disable-line
 			msg.channel.send(`Found **${songs.length}** songs in play playlist. Loading songs in background...`)
 
 			var counterOK = 0;
-            var counterAll = 0;
+			var counterAll = 0;
+			var errorCount = 0;
             counterAll = songs.length;            
             var clr;
             if(counterAll == counterOK) clr = 0x04ff00
@@ -293,9 +294,12 @@ client.on('message', async msg => { // eslint-disable-line
             }});
 
 			for(const song of songs){				
-				await playSong(msg, song)
-
-				counterOK++;
+				try{
+					await playSong(msg, song)
+					counterOK++;
+				}catch{
+					errorCount++;
+				}				
 				m.then(_m =>{
 					if(counterAll == counterOK) clr = 0x04ff00
 					else clr = 0xffdd00;
@@ -306,6 +310,8 @@ client.on('message', async msg => { // eslint-disable-line
 					}});
 				});
 			}
+			if(errorCount == 1) msg.channel.send("There were error while loading")
+			else if(errorCount > 1) msg.channel.send(`There were errors while loading: (${errorCount})`)
 		})	
 	}
 
@@ -400,7 +406,7 @@ async function playSong(msg, _song){
 	}
 	catch(e){
 		console.log(e)
-		return reject(msg.channel.send(e + ". Remember, replace łąć with lac"))
+		return reject("Can't load video")
 	}
 		
 	_song = videoUrl.url;

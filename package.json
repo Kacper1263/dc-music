@@ -12,7 +12,7 @@
     "discord-youtube-api": "^0.1.0",
     "discord.js": "^11.5.1",
     "ffmpeg": "0.0.4",
-    "opusscript": "0.0.7",
+    "node-opus": "^0.3.2",
     "pkg": "^4.4.0",
     "quick.db": "^7.0.0-b22",
     "tidal-api-wrapper": "^1.7.0",
