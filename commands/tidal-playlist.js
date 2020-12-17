@@ -17,7 +17,7 @@ async function getPlaylistSongs(UUID){
             songList = songList.filter(arrayWithoutSpecials)
             resolve(shuffleArray(songList))
         }).catch(e => {
-            console.log("Error: Can't find playlist")
+            console.log("Error: Can't find playlist: " + e)
             reject("Error: Can't find playlist")
         }) 
     }); 
