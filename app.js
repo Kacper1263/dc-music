@@ -9,7 +9,7 @@ const lastUpdate = "16.12.2020"							//
 //--------------------------------------------------------------//
 const db = require('quick.db');
 const { Client, Util } = require('discord.js');
-const { PREFIX, TOKEN, YT_TOKEN } = require('./config');
+const { PREFIX, TOKEN} = require('./config');
 const ytdl = require('ytdl-core');
 const YouTube = require("yt-search");
 const stats = require('./commands/stats.js');
@@ -163,7 +163,7 @@ client.on('message', async msg => { // eslint-disable-line
 
 	if (!msg.content.startsWith(PREFIX)) return undefined;
 	const args = msg.content.split(' ');
-	const serverQueue = queue.get(msg.guild.id);
+	let serverQueue = queue.get(msg.guild.id);
 
 	if (msg.content.startsWith(`${PREFIX}play`)) {
 		//msg.delete();
@@ -178,15 +178,24 @@ client.on('message', async msg => { // eslint-disable-line
 		}
 		let msgSearch = await msg.channel.send("Searching...")
 		if (!msg.content.includes('youtube.com/' || 'youtu.be/')){
-			var videoUrl;
+			var videoSearch;
 			try{
-				videoUrl = await YouTube(msg.content.slice(PREFIX.length+5)); // "play" + space = 5
+				videoSearch = await YouTube(msg.content.slice(PREFIX.length+5)); // "play" + space = 5
 			}
 			catch(e){
 				return msg.channel.send(e)
 			}
 
-			let m = await msgSearch.edit(`Select proper song with \`$number\`:\n$1 - ${videoUrl.videos[0].title}\n$2 - ${videoUrl.videos[1].title}\n$3 - ${videoUrl.videos[2].title}\n$4 - ${videoUrl.videos[3].title}\n$5 - ${videoUrl.videos[4].title}`)
+			if(videoSearch.videos.length <= 0) return msgSearch.edit("Song `" + msg.content.slice(PREFIX.length+5) + "` not found")
+			if(videoSearch.videos.length < 5) return msgSearch.edit(`Found ${videoSearch.videos.length} songs but bot requires 5. Report this error to <@329706346826039297> with your search query or check is Your song name correct`)
+
+			let m;
+			try{
+				m = await msgSearch.edit(`Select proper song with \`$number\`:\n$1 - ${videoSearch.videos[0].title}\n$2 - ${videoSearch.videos[1].title}\n$3 - ${videoSearch.videos[2].title}\n$4 - ${videoSearch.videos[3].title}\n$5 - ${videoSearch.videos[4].title}`)
+			}
+			catch(e){
+				return msg.channel.send(e + "\nYou can try again.")
+			}
 			let message;
 			try{
 				message = await msg.channel.awaitMessages(m => m.author.id === msg.author.id,{
@@ -203,28 +212,28 @@ client.on('message', async msg => { // eslint-disable-line
 				url: ""
 			};
 			if(message.last().content == "$1"){
-				song.title = videoUrl.videos[0].title
-				song.url = videoUrl.videos[0].url
+				song.title = videoSearch.videos[0].title
+				song.url = videoSearch.videos[0].url
 				m.edit("Loading: " + song.title)
 			}
 			else if(message.last().content == "$2"){
-				song.title = videoUrl.videos[1].title
-				song.url = videoUrl.videos[1].url
+				song.title = videoSearch.videos[1].title
+				song.url = videoSearch.videos[1].url
 				m.edit("Loading: " + song.title)
 			}
 			else if(message.last().content == "$3"){
-				song.title = videoUrl.videos[2].title
-				song.url = videoUrl.videos[2].url
+				song.title = videoSearch.videos[2].title
+				song.url = videoSearch.videos[2].url
 				m.edit("Loading: " + song.title)
 			}
 			else if(message.last().content == "$4"){
-				song.title = videoUrl.videos[3].title
-				song.url = videoUrl.videos[3].url
+				song.title = videoSearch.videos[3].title
+				song.url = videoSearch.videos[3].url
 				m.edit("Loading: " + song.title)
 			}
 			else if(message.last().content == "$5"){
-				song.title = videoUrl.videos[4].title
-				song.url = videoUrl.videos[4].url
+				song.title = videoSearch.videos[4].title
+				song.url = videoSearch.videos[4].url
 				m.edit("Loading: " + song.title)
 			}
 			else{
@@ -237,53 +246,109 @@ client.on('message', async msg => { // eslint-disable-line
 			console.log(' ');
 		}
 		else{
-			try{
-				var song = {
-					title: "",
-					url: ""
-				};
-				
-				songInfo = await ytdl.getInfo(args[1]);
-				song.title = Util.escapeMarkdown(songInfo.videoDetails.title)
-				song.url = songInfo.videoDetails.video_url
-			}
-			catch(e){
-				console.log(e)
-				return msg.reply("Play it yourself, I can't because of error\n" + args[1])
-			}
-		}
-		
-		if (!serverQueue) {
-			const queueConstruct = {
-				textChannel: msg.channel,
-				voiceChannel: voiceChannel,
-				connection: null,
-				songs: [],
-				volume: 1,
-				playing: true
-			};
-			queue.set(msg.guild.id, queueConstruct);
+			// bulk add
+			if(msg.content.includes("|")){
+				let songsToAdd = msg.content.slice(PREFIX.length+5).split("|")
+				console.log(songsToAdd)
+				for (s = 0; s < songsToAdd.length; s++ ) {
+					let song = {
+						title: "",
+						url: ""
+					};
+	
+					songInfo = await ytdl.getInfo(songsToAdd[s].trim());
+					song.title = Util.escapeMarkdown(songInfo.videoDetails.title)
+					song.url = songInfo.videoDetails.video_url
 
-			queueConstruct.songs.push(song);
+					// Adding to queue MUST BE THE SAME AS ABOVE IN FOREACH
+					if (!serverQueue) {
+						const queueConstruct = {
+							textChannel: msg.channel,
+							voiceChannel: voiceChannel,
+							connection: null,
+							songs: [],
+							volume: 1,
+							playing: true
+						};
 
-			try {
-				var connection = await voiceChannel.join();
-				queueConstruct.connection = connection;
-				play(msg.guild, queueConstruct.songs[0]);
-			} catch (error) {
-				console.error(`I could not join the voice channel: ${error}`);
-				queue.delete(msg.guild.id);
-				return msg.channel.send(`I could not join the voice channel: ${error}`);
+						queueConstruct.songs.push(song);
+						queue.set(msg.guild.id, queueConstruct);
+						serverQueue = queue.get(msg.guild.id)
+			
+						try {
+							var connection = await voiceChannel.join();
+							queueConstruct.connection = connection;
+							play(msg.guild, queueConstruct.songs[0]);
+						} catch (error) {
+							console.error(`I could not join the voice channel: ${error}`);
+							queue.delete(msg.guild.id);
+							return msg.channel.send(`I could not join the voice channel: ${error}`);
+						}
+					} else {
+						serverQueue.songs.push(song);
+						console.log("Added to queue: " + song.title)
+						// console.log(serverQueue.songs); //? MOVED OUTSIDE LOOP and REPLACED WITH LOG ABOVE
+						msg.channel.send(`**${song.title}** has been added to the queue!`);
+					}
+					msgSearch.edit({embed: {
+						color: (s+1) == songsToAdd.length ? 0x04ff00 : 0xffdd00,
+						description: `Loaded ${s+1} of ${songsToAdd.length}`
+					}})
+				}
+				console.log(serverQueue.songs); //? MOVED HERE
 			}
-		} else {
-			serverQueue.songs.push(song);
-			console.log(serverQueue.songs);
-			return msg.channel.send(`**${song.title}** has been added to the queue!`);
-		}
+			else{
+				try{
+					let song = {
+						title: "",
+						url: ""
+					};
+	
+					songInfo = await ytdl.getInfo(args[1]);
+					song.title = Util.escapeMarkdown(songInfo.videoDetails.title)
+					song.url = songInfo.videoDetails.video_url
+
+					// Adding to queue MUST BE THE SAME AS ABOVE IN FOREACH
+					if (!serverQueue) {
+						const queueConstruct = {
+							textChannel: msg.channel,
+							voiceChannel: voiceChannel,
+							connection: null,
+							songs: [],
+							volume: 1,
+							playing: true
+						};
+						
+						queueConstruct.songs.push(song);
+						queue.set(msg.guild.id, queueConstruct);
+						serverQueue = queue.get(msg.guild.id)
+			
+						try {
+							var connection = await voiceChannel.join();
+							queueConstruct.connection = connection;
+							play(msg.guild, queueConstruct.songs[0]);
+						} catch (error) {
+							console.error(`I could not join the voice channel: ${error}`);
+							queue.delete(msg.guild.id);
+							return msg.channel.send(`I could not join the voice channel: ${error}`);
+						}
+					} else {
+						serverQueue.songs.push(song);
+						console.log(serverQueue.songs);
+						return msg.channel.send(`**${song.title}** has been added to the queue!`);
+					}
+				}
+				catch(e){
+					console.log(e)
+					return msg.reply("Play it yourself, I can't because of error\n" + args[1])
+				}
+			}			
+		}		
 		return undefined;
+
 	} else if (msg.content.startsWith(`${PREFIX}stop`)) {
-		
 		try{
+			//serverQueue.connection.dispatcher.end(); //Powodowało błędy ale chyba naprawione
 			msg.guild.voice.connection.disconnect();
 		}
 		catch(e){
@@ -298,20 +363,24 @@ client.on('message', async msg => { // eslint-disable-line
 		}
 		loop = false;
 		queue.set(msg.guild.id)
-		//serverQueue.connection.dispatcher.end(); Powodowało błędy
 		return undefined;
     } 
 	else if (msg.content.startsWith(`${PREFIX}skip`)) {
 		if (!msg.member.voice.channel) return msg.channel.send('You are not in a voice channel!');
 		if (!serverQueue) return msg.channel.send('There is nothing playing that I could skip for you.');
 		loop = false;
-		serverQueue.connection.dispatcher.end('Skip command has been used!');
+		try{
+			serverQueue.connection.dispatcher.end('Skip command has been used!');
+		}
+		catch(e){
+			console.log(e)
+		}
 		return undefined;
     } else if (msg.content.startsWith(`${PREFIX}volume`)) {
 		if (!msg.member.voice.channel) return msg.channel.send('You are not in a voice channel!');
 		if (!serverQueue) return msg.channel.send('There is nothing playing.');
 		if (!args[1]) return msg.channel.send(`The current volume is: **${serverQueue.volume}**`);
-		if(parseInt(args[1]) > 10){
+		if(parseInt(args[1]) > 5){
 			let m = msg.channel.send({embed: {
 				color: 0xffdd00,
 				description: "WARNING! High volume will be set in 3 seconds!"
@@ -348,7 +417,7 @@ client.on('message', async msg => { // eslint-disable-line
 			// Calculates ping between sending a message and editing it, giving a nice round-trip latency.
 			// The second ping is an average latency between the bot and the websocket server (one-way, not round-trip)
 			const m = await msg.channel.send("Ping?");
-			m.edit(`Pong! Latency is ${m.createdTimestamp - msg.createdTimestamp}ms. API Latency is ${Math.round(client.ping)}ms`);
+			m.edit(`Pong! Latency is ${Date.now() - msg.createdTimestamp}ms. API Latency is ${Math.round(client.ws.ping)}ms`);
 	}
 	if(msg.content.startsWith(`${PREFIX}changeStatus`)){
 		console.log(msg.content.slice(PREFIX.length+("changeStatus").length).trim())
@@ -497,7 +566,9 @@ async function play(guild, song) {
 			if(!loop){
 				serverQueue.songs.shift();
 			}	
-			if(!serverQueue.songs[0]) return	
+			if(!serverQueue.songs[0]) {
+				return serverQueue.textChannel.send(`Queue is empty. Stopped playing`)
+			}	
 			play(guild, serverQueue.songs[0]);
 		})
 		.on('error', error => console.error(error));

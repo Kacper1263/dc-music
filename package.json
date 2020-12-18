@@ -9,16 +9,21 @@
   "author": "Kacper Marcinkiewicz",
   "license": "ISC",
   "dependencies": {
+    "@discordjs/opus": "^0.3.3",
+    "bufferutil": "^4.0.2",
     "discord-youtube-api": "^0.1.0",
     "discord.js": "^12.5.1",
+    "erlpack": "github:discord/erlpack",
     "esprima": "^4.0.1",
     "ffmpeg": "0.0.4",
-    "node-opus": "^0.3.3",
+    "libsodium-wrappers": "^0.7.8",
     "pkg": "^4.4.0",
     "quick.db": "^7.0.0-b22",
     "tidal-api-wrapper": "^1.7.0",
+    "utf-8-validate": "^5.0.3",
     "uws": "^200.0.0",
     "yt-search": "^2.5.1",
-    "ytdl-core": "^4.1.7"
+    "ytdl-core": "^4.2.0",
+    "zlib-sync": "^0.1.7"
   }
 }
