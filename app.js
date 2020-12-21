@@ -43,30 +43,10 @@ client.on('message', async msg => { // eslint-disable-line
 	const _args = msg.content.slice(1).trim().split(/ +/g);
 	const command = _args.shift();
 
-	if(command == "choice"){
-		msg.channel.send("What you want to select?\n1 - Test1\n2 - Test2").then((m) => {
-			msg.channel.awaitMessages(m => m.author.id === msg.author.id,{
-				max: 1,
-				time: 30000,
-				errors: ["time"]
-			}).then(message => {
-				console.log(message)
-				if(message.last().content == 1 || message.last().content == "$1" || message.last().content == "$play 1"){
-					m.edit("Selected - 1")
-					console.log("Selecting 1")
-				}
-				else if(message.last().content == 2){
-					m.edit("Selected - 2")
-					console.log("Selecting 2")
-				}
-				else{
-					console.log("Selecting else")
-				}
-			}).catch(e => {
-				console.log(e)
-				m.edit("Timed out")
-			})
-		})
+	if(command == "clearCache"){
+		const amount = client.sweepMessages(1800);
+		console.log(`Successfully removed ${amount} messages from the cache.`);
+		msg.channel.send(`Successfully removed ${amount} messages from the cache.`);
 	}
 
 	if(command == "readChannel"){
@@ -244,6 +224,9 @@ client.on('message', async msg => { // eslint-disable-line
 			console.log('Typed: ' + msg.content.slice(6)); // prefix(1) + play(4)
 			console.log('Url: ' + song.url);
 			console.log(' ');
+
+			AddToQueue(song, serverQueue, msg, voiceChannel)
+			return
 		}
 		else{
 			// bulk add
@@ -261,35 +244,8 @@ client.on('message', async msg => { // eslint-disable-line
 					song.url = songInfo.videoDetails.video_url
 
 					// Adding to queue MUST BE THE SAME AS ABOVE IN FOREACH
-					if (!serverQueue) {
-						const queueConstruct = {
-							textChannel: msg.channel,
-							voiceChannel: voiceChannel,
-							connection: null,
-							songs: [],
-							volume: 1,
-							playing: true
-						};
+					if(!AddToQueue(song, serverQueue, msg, voiceChannel)) return
 
-						queueConstruct.songs.push(song);
-						queue.set(msg.guild.id, queueConstruct);
-						serverQueue = queue.get(msg.guild.id)
-			
-						try {
-							var connection = await voiceChannel.join();
-							queueConstruct.connection = connection;
-							play(msg.guild, queueConstruct.songs[0]);
-						} catch (error) {
-							console.error(`I could not join the voice channel: ${error}`);
-							queue.delete(msg.guild.id);
-							return msg.channel.send(`I could not join the voice channel: ${error}`);
-						}
-					} else {
-						serverQueue.songs.push(song);
-						console.log("Added to queue: " + song.title)
-						// console.log(serverQueue.songs); //? MOVED OUTSIDE LOOP and REPLACED WITH LOG ABOVE
-						msg.channel.send(`**${song.title}** has been added to the queue!`);
-					}
 					msgSearch.edit({embed: {
 						color: (s+1) == songsToAdd.length ? 0x04ff00 : 0xffdd00,
 						description: `Loaded ${s+1} of ${songsToAdd.length}`
@@ -308,35 +264,8 @@ client.on('message', async msg => { // eslint-disable-line
 					song.title = Util.escapeMarkdown(songInfo.videoDetails.title)
 					song.url = songInfo.videoDetails.video_url
 
-					// Adding to queue MUST BE THE SAME AS ABOVE IN FOREACH
-					if (!serverQueue) {
-						const queueConstruct = {
-							textChannel: msg.channel,
-							voiceChannel: voiceChannel,
-							connection: null,
-							songs: [],
-							volume: 1,
-							playing: true
-						};
-						
-						queueConstruct.songs.push(song);
-						queue.set(msg.guild.id, queueConstruct);
-						serverQueue = queue.get(msg.guild.id)
-			
-						try {
-							var connection = await voiceChannel.join();
-							queueConstruct.connection = connection;
-							play(msg.guild, queueConstruct.songs[0]);
-						} catch (error) {
-							console.error(`I could not join the voice channel: ${error}`);
-							queue.delete(msg.guild.id);
-							return msg.channel.send(`I could not join the voice channel: ${error}`);
-						}
-					} else {
-						serverQueue.songs.push(song);
-						console.log(serverQueue.songs);
-						return msg.channel.send(`**${song.title}** has been added to the queue!`);
-					}
+					AddToQueue(song, serverQueue, msg, voiceChannel)
+					return
 				}
 				catch(e){
 					console.log(e)
@@ -469,45 +398,6 @@ client.on('message', async msg => { // eslint-disable-line
 		}
 	}
 
-	if(msg.content.startsWith(`${PREFIX}playTidal`) || msg.content.startsWith(`${PREFIX}tidal`)){
-		getPlaylistSongs('22dd13c7-ae9d-4728-9b43-a455476da608').then(async songs =>{
-			msg.channel.send(`Found **${songs.length}** songs in play playlist. Loading songs in background...`)
-
-			var counterOK = 0;
-			var counterAll = 0;
-			var errorCount = 0;
-            counterAll = songs.length;            
-            var clr;
-            if(counterAll == counterOK) clr = 0x04ff00
-            else clr = 0xffdd00;
-            
-            var m = msg.channel.send({embed: {
-                color: clr,
-                description: "**" + counterOK + "** songs of **" + counterAll + "** have been loaded"
-            }});
-
-			for(const song of songs){				
-				try{
-					await playSong(msg, song)
-					counterOK++;
-				}catch{
-					errorCount++;
-				}				
-				m.then(_m =>{
-					if(counterAll == counterOK) clr = 0x04ff00
-					else clr = 0xffdd00;
-					
-					_m.edit({embed: {
-						color: clr,
-						description: "**" + counterOK + "** songs of **" + counterAll + "** have been loaded"
-					}});
-				});
-			}
-			if(errorCount == 1) msg.channel.send("There were error while loading")
-			else if(errorCount > 1) msg.channel.send(`There were errors while loading: (${errorCount})`)
-		})	
-	}
-
 	return undefined;
 });
 
@@ -577,41 +467,8 @@ async function play(guild, song) {
 	if(!loop) serverQueue.textChannel.send(`Start playing: **${song.title}**`);
 }
 
-/**
- * Modified "if" from bot commands to use in Tidal
- */
-async function playSong(msg, _song){	
-	var promise = new Promise(async (resolve, reject) => {
-    const serverQueue = queue.get(msg.guild.id);
-	const voiceChannel = msg.member.voice.channel;
-	if (!voiceChannel) reject(msg.channel.send('I\'m sorry but you need to be in a voice channel to play music!'))
-	const permissions = voiceChannel.permissionsFor(msg.client.user);
-	if (!permissions.has('CONNECT')) {
-		return reject(msg.channel.send('I cannot connect to your voice channel, make sure I have the proper permissions!'))
-	}
-	if (!permissions.has('SPEAK')) {
-		return reject(msg.channel.send('I cannot speak in this voice channel, make sure I have the proper permissions!'))
-	}
-	
-	var videoUrl;
-	try{
-		console.log("Searching " + _song)
-		videoUrl = await YouTube(msg.content.slice(PREFIX.length+5));
-		videoUrl = videoUrl.videos[0].url
-	}
-	catch(e){
-		console.log(e)
-		return reject("Can't load video")
-	}
-		
-	_song = videoUrl.url;
-
-	const songInfo = await ytdl.getInfo(_song);
-	const song = {
-		title: Util.escapeMarkdown(songInfo.title),
-		url: songInfo.video_url
-	};
-	if (!serverQueue) {
+async function AddToQueue(song, serverQueue, msg, voiceChannel){
+	if (!serverQueue || !serverQueue.songs[0]) {
 		const queueConstruct = {
 			textChannel: msg.channel,
 			voiceChannel: voiceChannel,
@@ -620,25 +477,25 @@ async function playSong(msg, _song){
 			volume: 1,
 			playing: true
 		};
-		queue.set(msg.guild.id, queueConstruct);
-
+		
 		queueConstruct.songs.push(song);
+		queue.set(msg.guild.id, queueConstruct);
+		serverQueue = queue.get(msg.guild.id)
 
 		try {
 			var connection = await voiceChannel.join();
 			queueConstruct.connection = connection;
 			play(msg.guild, queueConstruct.songs[0]);
-			return resolve(_song)
 		} catch (error) {
 			console.error(`I could not join the voice channel: ${error}`);
 			queue.delete(msg.guild.id);
-			return reject(msg.channel.send(`I could not join the voice channel: ${error}`))
+			return msg.channel.send(`I could not join the voice channel: ${error}`);
 		}
 	} else {
-		serverQueue.songs.push(song.title);
-		return resolve(console.log("Song added"))
-	}}); 
-	
-	return promise;
+		serverQueue.songs.push(song);
+		console.log(serverQueue.songs);
+		return msg.channel.send(`**${song.title}** has been added to the queue!`);
+	}
 }
+
 client.login(TOKEN);
