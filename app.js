@@ -276,6 +276,7 @@ client.on('message', async msg => { // eslint-disable-line
 		return undefined;
 
 	} else if (msg.content.startsWith(`${PREFIX}stop`)) {
+		resetStatus()
 		try{
 			//serverQueue.connection.dispatcher.end(); //Powodowało błędy ale chyba naprawione
 			msg.guild.voice.connection.disconnect();
@@ -309,7 +310,7 @@ client.on('message', async msg => { // eslint-disable-line
 		if (!msg.member.voice.channel) return msg.channel.send('You are not in a voice channel!');
 		if (!serverQueue) return msg.channel.send('There is nothing playing.');
 		if (!args[1]) return msg.channel.send(`The current volume is: **${serverQueue.volume}**`);
-		if(parseInt(args[1]) > 5){
+		if(parseInt(args[1]) >= 5){
 			let m = msg.channel.send({embed: {
 				color: 0xffdd00,
 				description: "WARNING! High volume will be set in 3 seconds!"
@@ -355,18 +356,16 @@ client.on('message', async msg => { // eslint-disable-line
 		.catch(console.error);
 	}
 	if(msg.content.startsWith(`${PREFIX}resetStatus`)){
-		client.user.setActivity('$play Url/Title             BETA', {type: "LISTENING"}).catch(e =>{
-			console.log(e);
-		});
+		resetStatus()
 	}
 	if(msg.content.startsWith(`${PREFIX}whatRegion`)){
 		var _region = msg.guild.region;
 		msg.channel.send("Server region is: " + _region);
 	}
 	if(msg.content.startsWith(`${PREFIX}changeRegion`)){
-		if((Date.now() - lastTimeChangedRegion) < 20000){
+		if((Date.now() - lastTimeChangedRegion) < 5000){
 			msg.delete();
-			var wait = (20000 - (Date.now() - lastTimeChangedRegion)) / 1000;
+			var wait = (5000 - (Date.now() - lastTimeChangedRegion)) / 1000;
 			msg.reply("Wait **" + Math.floor(wait) + "s** before next region change");
 			return;
 	  	}
@@ -401,42 +400,46 @@ client.on('message', async msg => { // eslint-disable-line
 	return undefined;
 });
 
+function resetStatus(){
+	client.user.setActivity('$play Url/Title             BETA', {type: "LISTENING"}).catch(e =>{
+			console.log(e);
+	});
+}
 
-
-function randomReg(_msg){
+async function randomReg(_msg){
 	var _region = _msg.guild.region;
-	var regions = ["eu-west", "us-west", "eu-central", "us-central"];
+	var regions = await _msg.guild.fetchVoiceRegions();
 	
-	var rand = Math.floor(Math.random() * 4);
+	var _randomRegion = regions.random().id;
 
-	console.log("Old region: "+_region + " New region to set: " + regions[rand] + " Number: " + rand);
+	console.log("Old region: "+_region + " New region to set: " + _randomRegion);
 
-	if(regions[rand] == _region){
+	if(_randomRegion == _region){
 		console.log("The same region. RandomAgain");
 		randomReg(_msg);
 	}
-	else setRegion(_msg,_region, regions[rand]);
+	else setRegion(_msg,_region, _randomRegion);
 }
 
 async function setRegion(msg, oldServer, newServer){
-	var m = msg.channel.send({embed: {
+	msg.channel.send({embed: {
 	  color: 0xffdd00,
 	  description: "Server region is: **" + oldServer + "**. Trying to set new region: **" + newServer + "**..."
-	}});
-  
-	  msg.guild.setRegion(newServer)
+	}}).then(mt => {
+		msg.guild.setRegion(newServer)
 		.then(g =>
-		  m.then(mt => mt.edit({embed: {
+		  mt.edit({embed: {
 			color: 0x04ff00,
 			description: "Server region is: **" + oldServer + "**. Trying to set new region: **" + newServer + "**... \nSuccess!"
-		  }}))
+		  }})
 		)
 		.catch(e => 
-		  m.then(mt => mt.edit({embed: {
+		  mt.edit({embed: {
 			color: 0xff0000,
 			description: "Server region is: **" + oldServer + "**. Trying to set new region: **" + newServer + "**... \nError: "+ e +"!"
-		  }}))      
+		  }})      
 		);
+	})	  
 }
 
 async function play(guild, song) {
@@ -457,6 +460,7 @@ async function play(guild, song) {
 				serverQueue.songs.shift();
 			}	
 			if(!serverQueue.songs[0]) {
+				resetStatus()
 				return serverQueue.textChannel.send(`Queue is empty. Stopped playing`)
 			}	
 			play(guild, serverQueue.songs[0]);
@@ -465,6 +469,10 @@ async function play(guild, song) {
 	dispatcher.setVolumeLogarithmic(serverQueue.volume / 5); //serverQueue.volume
 
 	if(!loop) serverQueue.textChannel.send(`Start playing: **${song.title}**`);
+	
+	client.user.setActivity(`${song.title}`, {type: "LISTENING"}).catch(e =>{
+			console.log(e);
+	});
 }
 
 async function AddToQueue(song, serverQueue, msg, voiceChannel){
