@@ -443,36 +443,47 @@ async function setRegion(msg, oldServer, newServer){
 }
 
 async function play(guild, song) {
-	const serverQueue = queue.get(guild.id);
-	if (!song) {
-		//serverQueue.voiceChannel.leave();
-		queue.delete(guild.id);
-		return;
+	try{
+		const serverQueue = queue.get(guild.id);
+		if (!song) {
+			//serverQueue.voiceChannel.leave();
+			queue.delete(guild.id);
+			return;
+		}
+		console.log(serverQueue.songs);
+
+		let stream = ytdl(song.url, {filter: 'audioonly'});
+		stream.on('error', error => console.error(error));
+		const dispatcher = await serverQueue.connection.play(stream)
+			.on('finish', () => {
+				console.log('song ended!');
+				if(!loop){
+					serverQueue.songs.shift();
+				}	
+				if(!serverQueue.songs[0]) {
+					resetStatus()
+					return serverQueue.textChannel.send(`Queue is empty. Stopped playing`)
+				}	
+				play(guild, serverQueue.songs[0]);
+			})
+			.on('error', error => console.error(error));
+		dispatcher.setVolumeLogarithmic(serverQueue.volume / 5); //serverQueue.volume
+
+		if(!loop) serverQueue.textChannel.send(`Start playing: **${song.title}**`);
+		
+		client.user.setActivity(`${song.title}`, {type: "LISTENING"}).catch(e =>{
+				console.log(e);
+		});
 	}
-	console.log(serverQueue.songs);
-
-	let stream = ytdl(song.url, {filter: 'audioonly'});
-	stream.on('error', error => console.error(error));
-	const dispatcher = await serverQueue.connection.play(stream)
-		.on('finish', () => {
-			console.log('song ended!');
-			if(!loop){
-				serverQueue.songs.shift();
-			}	
-			if(!serverQueue.songs[0]) {
-				resetStatus()
-				return serverQueue.textChannel.send(`Queue is empty. Stopped playing`)
-			}	
-			play(guild, serverQueue.songs[0]);
-		})
-		.on('error', error => console.error(error));
-	dispatcher.setVolumeLogarithmic(serverQueue.volume / 5); //serverQueue.volume
-
-	if(!loop) serverQueue.textChannel.send(`Start playing: **${song.title}**`);
-	
-	client.user.setActivity(`${song.title}`, {type: "LISTENING"}).catch(e =>{
-			console.log(e);
-	});
+	catch(e){
+		console.log(e);
+		try{
+			serverQueue.textChannel.send(`Error: ${e}`)
+		}
+		catch(er){
+			console.log(er);
+		}		
+	}
 }
 
 async function AddToQueue(song, serverQueue, msg, voiceChannel){
